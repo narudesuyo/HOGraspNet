@@ -212,7 +212,7 @@ If using this dataset, please cite the following paper:
 ```
 
 ## Acknowledgments
-이 연구는 과학기술정보통신부의 재원으로 한국지능정보사회진흥원의 지원을 받아 구축된 "물체 조작 손 동작 3D 데이터"을 활용하여 수행된 연구입니다.
+이 연구는 과학기술정보통신부의 재원으로 정보통신기획평가원 및 한국지능정보사회진흥원의 지원을 받아 구축된 "물체 조작 손 동작 3D 데이터"을 활용하여 수행된 연구입니다. (CRC 21011, No.2019-0-01270 and RS-2023-00228996, MSIT).
 본 연구에 활용된 데이터는 AI 허브([aihub.or.kr](http://aihub.or.kr/))에서 다운로드 받으실 수 있습니다.
 This research (paper) used datasets from 'The Open AI Dataset Project (AI-Hub, S. Korea)'.
 All data information can be accessed through 'AI-Hub ([www.aihub.or.kr](http://www.aihub.or.kr/))'.
