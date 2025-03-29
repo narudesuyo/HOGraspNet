@@ -28,7 +28,8 @@ def train_autoencoder(model: Autoencoder,
                      learning_rate: float = 1e-3,
                      device: str = 'cuda',
                      lambda_recon: float = 1.0,
-                     lambda_class: float = 1.0):
+                     lambda_class: float = 1.0,
+                     val_interval: int = 10):
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
     
@@ -66,26 +67,26 @@ def train_autoencoder(model: Autoencoder,
         avg_train_loss = train_loss / len(train_loader)
         
 
-        
-        model.eval()
-        val_loss = 0
-        with torch.no_grad():
-            correct = 0
-            total = 0
-            for combined_data, labels in val_loader:
-                combined_data, labels = combined_data.transpose(1, 2).to(device), labels.to(device)
-                reconstructed, classfication = model(combined_data) 
-                loss1 = criterion1(reconstructed, combined_data)
-                loss2 = criterion2(classfication, labels)
-                loss = lambda_recon * loss1 + lambda_class * loss2
-                val_loss += loss.item()
+        if epoch % val_interval == 0:
+            model.eval()
+            val_loss = 0
+            with torch.no_grad():
+                correct = 0
+                total = 0
+                for combined_data, labels in val_loader:
+                    combined_data, labels = combined_data.transpose(1, 2).to(device), labels.to(device)
+                    reconstructed, classfication = model(combined_data) 
+                    loss1 = criterion1(reconstructed, combined_data)
+                    loss2 = criterion2(classfication, labels)
+                    loss = lambda_recon * loss1 + lambda_class * loss2
+                    val_loss += loss.item()
 
-                _, predicted = torch.max(classfication.data, 1)
-                labels = labels.argmax(dim=1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-                
-        avg_val_loss = val_loss / len(val_loader)
+                    _, predicted = torch.max(classfication.data, 1)
+                    labels = labels.argmax(dim=1)
+                    total += labels.size(0)
+                    correct += (predicted == labels).sum().item()
+                    
+            avg_val_loss = val_loss / len(val_loader)
 
         wandb.log({
             "train_loss": avg_train_loss,
@@ -144,6 +145,7 @@ if __name__ == '__main__':
                       num_epochs=train_config['num_epochs'],
                       learning_rate=train_config['learning_rate'],
                       lambda_recon=train_config['lambda_recon'],
-                      lambda_class=train_config['lambda_class'])
+                      lambda_class=train_config['lambda_class'],
+                      val_interval=train_config['val_interval'])
 
     wandb.finish()
