@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 
 class HOGDataLoader:
-    def __init__(self, split, db_path, batch_size=64, num_workers=4, shuffle=True, contact_bin=False):
+    def __init__(self, split, db_path, batch_size=64, num_workers=4, shuffle=True, contact_bin=False, contact=True):
         """Constructor.
         Args:
             setup: Setup name. 'travel_all', 's0', 's1', 's2', 's3', or 's4'
@@ -18,7 +18,7 @@ class HOGDataLoader:
             load_pkl: Use saved pkl if exists.
         """
         from dataset import HOGDataset
-        self.dataset = HOGDataset(split, db_path, contact_bin)
+        self.dataset = HOGDataset(split, db_path, contact_bin, contact)
         self.dataloader = DataLoader(
             self.dataset, 
             batch_size=batch_size, 

@@ -4,10 +4,11 @@ from torch.utils.data import Dataset
 import h5py
 
 class HOGDataset(Dataset):
-    def __init__(self, split, db_path, contact_bin=False):
+    def __init__(self, split, db_path, contact_bin=False, contact=True):
         self.h5_path = f'{db_path}/processed_{split}.h5'
         self.h5_file = None
         self.contact_bin = contact_bin
+        self.contact = contact
         with h5py.File(self.h5_path, 'r') as f:
             self.keys = list(f.keys())
 
@@ -27,8 +28,10 @@ class HOGDataset(Dataset):
         one_hot = torch.zeros(33)
         one_hot[class_id - 1] = 1.0
         combined_data = torch.cat([vertices, contact], dim=-1)
-
-        return combined_data, one_hot
+        if self.contact:
+            return combined_data, one_hot
+        else:
+            return vertices, one_hot
 
     # def __del__(self):
     #     self.h5_file.close()

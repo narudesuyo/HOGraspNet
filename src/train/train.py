@@ -38,6 +38,9 @@ def train_autoencoder(model: Autoencoder,
     criterion1 = nn.MSELoss()
     criterion2 = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+
+    model_dir = 'checkpoints_no_contact'
+    os.makedirs(model_dir, exist_ok=True)
     
     for epoch in range(num_epochs):
         model.train()
@@ -95,7 +98,7 @@ def train_autoencoder(model: Autoencoder,
                    f'Val Loss: {avg_val_loss:.4f}, '
                    f'Accuracy: {correct / total:.4f} ')
         if (epoch + 1) % 5 == 0:  # 5エポックごとに保存
-            model_path = os.path.join('checkpoints', f'model_epoch_{epoch+1}.pth')
+            model_path = os.path.join(model_dir, f'model_epoch_{epoch+1}.pth')
             torch.save({
                 'epoch': epoch + 1,
                 'model_state_dict': model.state_dict(),
@@ -106,10 +109,11 @@ def train_autoencoder(model: Autoencoder,
             logger.info(f'Model saved at {model_path}')
 
 if __name__ == '__main__':
+    contact = False
     wandb.init(project="HOG_autoencoder")
     print(torch.cuda.is_available())
     mp.set_start_method('spawn')
-    model = Autoencoder()
+    model = Autoencoder(contact=contact)
     print("model parameters:", sum(p.numel() for p in model.parameters()))
     setup = 's2'
     db_path = "processed_data1"
@@ -124,14 +128,16 @@ if __name__ == '__main__':
                                  batch_size=data_config['batch_size'], 
                                  num_workers=data_config['num_workers'], 
                                  shuffle=data_config['shuffle'], 
-                                 contact_bin=data_config['contact_bin'])
+                                 contact_bin=data_config['contact_bin'],
+                                 contact=contact)
     print(f"train_loader: {len(train_loader)}")
 
     val_loader = HOGDataLoader('val', db_path, 
                                batch_size=data_config['batch_size'], 
                                num_workers=data_config['num_workers'], 
                                shuffle=data_config['shuffle'], 
-                               contact_bin=data_config['contact_bin'])
+                               contact_bin=data_config['contact_bin'],
+                               contact=contact)
     print(f"val_loader: {len(val_loader)}")
 
     train_autoencoder(model, train_loader, val_loader,

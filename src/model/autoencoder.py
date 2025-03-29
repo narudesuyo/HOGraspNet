@@ -3,10 +3,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class Encoder(nn.Module):
-    def __init__(self):
+    def __init__(self, contact=True):
         super(Encoder, self).__init__()
+        if contact:
+            input_dim = 4
+        else:
+            input_dim = 3
         # 入力: (batch, 4, 778)
-        self.conv1 = nn.Conv1d(4, 32, kernel_size=3, padding=1)  # -> (batch, 32, 778)
+        self.conv1 = nn.Conv1d(input_dim, 32, kernel_size=3, padding=1)  # -> (batch, 32, 778)
         self.conv2 = nn.Conv1d(32, 64, kernel_size=3, padding=1, stride=2)  # -> (batch, 64, 389)
         self.conv3 = nn.Conv1d(64, 128, kernel_size=3, padding=1, stride=2)  # -> (batch, 128, 195)
         self.conv4 = nn.Conv1d(128, 256, kernel_size=3, padding=1, stride=2)  # -> (batch, 256, 98)
@@ -27,8 +31,12 @@ class Encoder(nn.Module):
         return latent
 
 class Decoder(nn.Module):
-    def __init__(self):
+    def __init__(self, contact=True):
         super(Decoder, self).__init__()
+        if contact:
+            output_dim = 4
+        else:
+            output_dim = 3
         self.fc = nn.Linear(256, 1024 * 25)
 
         self.conv1 = nn.Conv1d(1024, 512, kernel_size=3, padding=1)
@@ -36,7 +44,7 @@ class Decoder(nn.Module):
         self.conv3 = nn.Conv1d(256, 128, kernel_size=3, padding=1)
         self.conv4 = nn.Conv1d(128, 64, kernel_size=3, padding=1)
         self.conv5 = nn.Conv1d(64, 32, kernel_size=3, padding=1)
-        self.conv6 = nn.Conv1d(32, 4, kernel_size=3, padding=1)
+        self.conv6 = nn.Conv1d(32, output_dim, kernel_size=3, padding=1)
         
     def forward(self, latent):
         x = self.fc(latent).view(-1, 1024, 25)
@@ -50,7 +58,7 @@ class Decoder(nn.Module):
         x = F.relu(self.conv4(x))
         x = F.interpolate(x, size=778, mode='nearest')  # 最後に 778 に調整
         x = F.relu(self.conv5(x))
-        x = self.conv6(x)  # -> (batch, 4, 778)
+        x = self.conv6(x)  # -> (batch, output_dim, 778)
         return x
 
 class MLPClassifier(nn.Module):
@@ -67,10 +75,10 @@ class MLPClassifier(nn.Module):
         return self.classifier(x)
 
 class Autoencoder(nn.Module):
-    def __init__(self):
+    def __init__(self, contact=True):
         super(Autoencoder, self).__init__()
-        self.encoder = Encoder()
-        self.decoder = Decoder()
+        self.encoder = Encoder(contact=contact)
+        self.decoder = Decoder(contact=contact)
         self.classifier = MLPClassifier()
         
     def forward(self, x):
@@ -80,7 +88,7 @@ class Autoencoder(nn.Module):
         return reconstructed, classification
 
 if __name__ == "__main__":
-    model = Autoencoder()
+    model = Autoencoder(contact=True)
     # 入力サイズ: (batch_size, 4, 778)
     print(sum(p.numel() for p in model.parameters() if p.requires_grad))
     x = torch.randn(2, 4, 778)  # 例: バッチサイズ2

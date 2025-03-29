@@ -12,9 +12,11 @@ vis/
 *.png
 *.jpg
 .conda
+.gitignore
 processed_data/
 processed_data1/
 mesh_output/
 manopth/
 wandb/
 checkpoints/
+checkpoints_no_contact/
