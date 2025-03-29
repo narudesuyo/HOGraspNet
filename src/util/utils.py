@@ -1,6 +1,8 @@
 import os
 import wget
-from dataset.config import cfg
+import sys
+sys.path.append("/large/naru/HOGraspNet")
+from config import cfg
 import requests
 from requests.exceptions import ConnectionError
 from tqdm.autonotebook import tqdm

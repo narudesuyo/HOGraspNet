@@ -7,8 +7,8 @@ from HOG_dataloader import HOGDataset
 import torch
 from torch.utils.data import DataLoader
 from config import cfg
-from scripts.util.renderer import Renderer
-from scripts.util.utils_vis import *
+from util.renderer import Renderer
+from util.utils_vis import *
 import numpy as np
 from thirdparty.manopth.manopth.manolayer import ManoLayer
 import cv2

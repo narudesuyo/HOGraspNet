@@ -11,7 +11,9 @@ import cv2
 from tqdm import tqdm
 import pickle
 from config import cfg
+sys.path.append("/large/naru/HOGraspNet/src")
 from util.utils import extractBbox
+import smplx
 # from pytorch3d.io import load_obj
 
 class HOGDataset():
@@ -372,6 +374,50 @@ class HOGDataset():
     def __len__(self):
         return len(self.mapping)
 
+    # def __getitem__(self, idx):
+    #     # s : subject , t : trial,  c : camera, i : idx, f : framenum
+    #     s, t, c, i, f = self.mapping[idx]
+
+    #     sample = self.dataset_samples[s][t][c][i]
+
+    #     ####### load data and set sample #####
+    #     label_path = sample['label_path']
+    #     with open(label_path, 'r', encoding='UTF-8 SIG') as file:
+    #         anno_data = json.load(file)     
+
+    #     hand_2d = np.squeeze(np.asarray(anno_data['hand']['projected_2D_pose_per_cam']))
+    #     bbox, _ = extractBbox(hand_2d)
+        
+    #     rgb_path = sample['rgb_path']
+    #     depth_path = sample['depth_path']
+
+    #     rgb_data = np.asarray(cv2.imread(rgb_path))
+    #     depth_data = np.asarray(cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)).astype(float)
+        
+    #     # crop the image if the source is from origin
+    #     if not sample['flag_crop']:        
+    #         rgb_data = rgb_data[int(bbox[1]):int(bbox[1] + bbox[3]), int(bbox[0]):int(bbox[0] + bbox[2])]
+    #         depth_data = depth_data[int(bbox[1]):int(bbox[1] + bbox[3]), int(bbox[0]):int(bbox[0] + bbox[2])]
+
+    #     sample['anno_data']  = anno_data
+    #     sample['rgb_data'] = rgb_data
+    #     sample['depth_data'] = depth_data
+    #     sample['bbox'] = bbox        
+
+    #     sample['camera']  = c
+    #     sample['intrinsics'] = self.cam_param_dict[s][t]['Ks'][c]
+    #     sample['extrinsics'] = self.cam_param_dict[s][t]['Ms'][c]
+
+    #     anno_data = sample['anno_data']
+    #     mano_trans = torch.tensor(anno_data['Mesh'][0]["mano_trans"])  
+    #     mano_pose = torch.tensor(anno_data['Mesh'][0]["mano_pose"])
+    #     mano_betas = torch.tensor(anno_data['Mesh'][0]["mano_betas"])
+    #     mano_side = anno_data['Mesh'][0]["mano_side"]
+
+    #     contact = anno_data["contact"]
+    #     class_id = anno_data['Mesh'][0]["class_id"]
+
+    #     return mano_trans, mano_pose, mano_betas, mano_side, contact, class_id
     def __getitem__(self, idx):
         # s : subject , t : trial,  c : camera, i : idx, f : framenum
         s, t, c, i, f = self.mapping[idx]
@@ -408,18 +454,17 @@ class HOGDataset():
 
         return sample
 
-
 def main():
     setup = 's2'
     split = 'test'
     print("loading ... ", setup + '_' + split)
 
-    db_path = os.path.join(os.environ['HOG_DIR'], "data")
+    db_path = "/large/naru/HOGraspNet/data"
     HOG = HOGDataset(setup, split, db_path)
 
-    print("db len: ", len(HOG))
+    # print("db len: ", len(HOG))
     data = HOG[0]
-    print(data)
+    # print(data)
 
         
 if __name__ == '__main__':

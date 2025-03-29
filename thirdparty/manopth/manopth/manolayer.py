@@ -3,7 +3,8 @@ import os
 import numpy as np
 import torch
 from torch.nn import Module
-
+import sys
+sys.path.insert(0, "/large/naru/HOGraspNet/thirdparty/manopth/")
 from mano.webuser.smpl_handpca_wrapper_HAND_only import ready_arguments
 from manopth import rodrigues_layer, rotproj, rot6d
 from manopth.tensutils import (th_posemap_axisang, th_with_zeros, th_pack,

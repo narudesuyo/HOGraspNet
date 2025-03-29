@@ -3,7 +3,7 @@ from enum import Enum, IntEnum
 
 class cfg:
 
-    mano_path = os.path.join(os.environ['HOG_DIR'], 'thirdparty/mano_v1_2/models')
+    mano_path = os.path.join('/large/naru/HOGraspNet/thirdparty/mano_v1_2/models') # hard coded by naru
 
     ## default dataset types ##
     split_types = list(range(5))
