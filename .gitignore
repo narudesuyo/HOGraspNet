@@ -24,7 +24,6 @@ checkpoints_no_contact/
 *.pkl
 *.pt
 *.json
-*.yaml
 *.yml
 *.txt
 *.csv
