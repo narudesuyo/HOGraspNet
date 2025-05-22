@@ -20,3 +20,17 @@ manopth/
 wandb/
 checkpoints/
 checkpoints_no_contact/
+*.pth
+*.pkl
+*.pt
+*.json
+*.yaml
+*.yml
+*.txt
+*.csv
+VLM/
+demo_s3_vertices.py
+demo_val.py
+demo_valid.py
+demo.py
+inference.py

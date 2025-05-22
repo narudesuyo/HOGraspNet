@@ -11,9 +11,13 @@ import cv2
 from tqdm import tqdm
 import pickle
 from config import cfg
-sys.path.append("/large/naru/HOGraspNet/src")
-from util.utils import extractBbox
+current_dir = os.path.dirname(os.path.abspath(__file__))
+hograspnet_src_path = os.path.join(current_dir, "..", "..", "HOGraspNet", "src")
+sys.path.append(os.path.abspath(hograspnet_src_path))
+from util.utils import extractBbox, extract_bbox_from_cropped, compute_object_bbox_2d
 import smplx
+import gc
+import re
 # from pytorch3d.io import load_obj
 
 class HOGDataset():
@@ -54,12 +58,13 @@ class HOGDataset():
         
         ## CHECK DATA 
         assert os.path.isdir(self._base_anno), "labeling data is not set, we require at least annotation & source(or source_augmented) to run dataloader"
-        assert os.path.isdir(self._base_source) or os.path.isdir(self._base_source_aug) , "source data is not set, we require at least annotation & source(or source_augmented) to run dataloader"
+        # assert os.path.isdir(self._base_source) or os.path.isdir(self._base_source_aug) , "source data is not set, we require at least annotation & source(or source_augmented) to run dataloader"
+        # edited by naru
         
         ## MINING SEQUENCE INFOS
         self._SUBJECTS, self._OBJ_IDX, self._GRASP_IDX, self._OBJ_GRASP_PAIR = [], [], [], []
         
-        seq_list = os.listdir(self._base_anno)
+        seq_list = os.listdir(self._base_source_aug)
         self._seq_dict_list = []
         for idx, seq in enumerate(seq_list) :            
             seq_info = {}
@@ -431,28 +436,85 @@ class HOGDataset():
 
         hand_2d = np.squeeze(np.asarray(anno_data['hand']['projected_2D_pose_per_cam']))
         bbox, _ = extractBbox(hand_2d)
+        bbox_hand = extract_bbox_from_cropped(hand_2d, bbox)
         
         rgb_path = sample['rgb_path']
-        depth_path = sample['depth_path']
+        # depth_path = sample['depth_path']
 
-        rgb_data = np.asarray(cv2.imread(rgb_path))
-        depth_data = np.asarray(cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)).astype(float)
+        # rgb_data = np.asarray(cv2.imread(rgb_path))
+        # depth_data = np.asarray(cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)).astype(float)
         
         # crop the image if the source is from origin
-        if not sample['flag_crop']:        
-            rgb_data = rgb_data[int(bbox[1]):int(bbox[1] + bbox[3]), int(bbox[0]):int(bbox[0] + bbox[2])]
-            depth_data = depth_data[int(bbox[1]):int(bbox[1] + bbox[3]), int(bbox[0]):int(bbox[0] + bbox[2])]
+        # if not sample['flag_crop']:        
+        #     rgb_data = rgb_data[int(bbox[1]):int(bbox[1] + bbox[3]), int(bbox[0]):int(bbox[0] + bbox[2])]
+        #     depth_data = depth_data[int(bbox[1]):int(bbox[1] + bbox[3]), int(bbox[0]):int(bbox[0] + bbox[2])]
 
         sample['anno_data']  = anno_data
-        sample['rgb_data'] = rgb_data
-        sample['depth_data'] = depth_data
-        sample['bbox'] = bbox        
 
-        sample['camera']  = c
-        sample['intrinsics'] = self.cam_param_dict[s][t]['Ks'][c]
-        sample['extrinsics'] = self.cam_param_dict[s][t]['Ms'][c]
 
-        return sample
+        batch = {}
+        batch["anno_data"] = anno_data
+        
+
+
+
+
+        batch['taxonomy_id'] = anno_data["annotations"][0]["class_id"]-1
+        batch['object_id'] = anno_data["object"]["id"]
+        batch['rgb_path'] = rgb_path
+        # batch['rgb_data'] = rgb_data
+        bbox_path = os.path.join(self._base_dir, 'bbox', s, t,'rgb_crop', c, c+'_'+f+'.pkl')
+        batch['bbox_path'] = bbox_path
+        # with open(bbox_path, 'rb') as d:
+        #     bbox = pickle.load(d)
+        # batch['bbox'] = bbox
+        mano_path = os.path.join(self._base_dir, 'mano', s, t, c, f +'.pkl')
+        batch['mano_path'] = mano_path
+        mano_trans = anno_data["Mesh"][0]["mano_trans"]
+        mano_pose = anno_data["Mesh"][0]["mano_pose"]
+        mano_betas = anno_data["Mesh"][0]["mano_betas"]
+        mano_side = anno_data["Mesh"][0]["mano_side"]
+        mano_xyz_root = anno_data["hand"]["mano_xyz_root"]
+        batch["mano_trans"] = mano_trans
+        batch["mano_pose"] = mano_pose
+        batch["mano_betas"] = mano_betas
+        batch["mano_side"] = mano_side
+        batch["mano_xyz_root"] = mano_xyz_root
+        # with open(mano_path, 'rb') as d:
+        #     mano_data = pickle.load(d)
+        # batch['mano_hamer'] = mano_data
+        # sample['depth_data'] = depth_data
+        # sample['bbox'] = bbox        
+        # edited by naru この辺#にしたよ
+        # sample['camera']  = c
+        # sample['intrinsics'] = self.cam_param_dict[s][t]['Ks'][c]
+        # sample['extrinsics'] = self.cam_param_dict[s][t]['Ms'][c]
+        # del anno_data, sample
+        # gc.collect()
+        batch["subject"] = s
+        batch["trial"] = t
+        batch["camera"] = c
+        batch["frame"] = f
+        batch["hand_2d"] = hand_2d
+        batch["bbox_hand"] = bbox_hand
+        object_file = anno_data["Mesh"][0]["object_file"]
+        first_token = object_file.split('_')[0]
+        if first_token.isdigit():
+            first_number = int(first_token)
+        obj = re.sub(r'_\d+$', '',os.path.splitext(object_file)[0])
+
+        object_file = os.path.join(self._base_dir, 'obj_scanned_models',obj,object_file)
+        # obj_scale = _OBJECT_SCALE_FIXED[int(self.obj_id) - 1]
+        obj_scale = _OBJECT_SCALE_FIXED = [1.,1.,1.,1.,0.8296698468,1.,1.,1.,1.,1.,0.1035083229,1.,0.6706711338,1.,1.,0.43,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.]
+        batch["bbox_obj"] = compute_object_bbox_2d(object_file, 
+                                                   anno_data["Mesh"][0]["object_mat"],
+                                                   self.cam_param_dict[s][t]['Ms'][c],
+                                                   self.cam_param_dict[s][t]['Ks'][c],
+                                                   bbox,
+                                                   scale = obj_scale[first_number-1])
+
+
+        return batch
 
 def main():
     setup = 's2'

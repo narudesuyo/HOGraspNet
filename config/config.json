@@ -1,16 +1,26 @@
 {
+    "model": {
+      "base_channels": 16,
+      "latent_dim": 32,
+      "mlp_hidden_dim": 32,
+      "num_classes": 33
+    },
     "train": {
       "num_epochs": 200,
-      "learning_rate": 0.001,
-      "lambda_recon": 1.0,
+      "learning_rate": 1e-5,
+      "lambda_recon": 300.0,
       "lambda_class": 1.0,
-      "val_interval": 10
+      "val_interval": 1,
+      "contact": false
     },
     "data": {
-      "batch_size": 64,
+      "batch_size": 256,
       "num_workers": 4,
       "shuffle": true,
-      "contact_bin": true
+      "contact_bin": false,
+      "max_angle": 15,
+      "vertices_aug": true,
+      "noise_level": 0.001
     }
   }
   

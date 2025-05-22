@@ -146,3 +146,105 @@ def extractBbox(hand_2d, image_rows=1080, image_cols=1920, bbox_w=640, bbox_h=48
 
     bbox = [x_min, y_min, bbox_w, bbox_h]
     return bbox, [x_min_, x_max_, y_min_, y_max_]
+
+
+# It's mine!
+def extract_bbox_from_cropped(hand_2d, crop_box, resized_size=(640, 480)):
+    """
+    hand_2d: (N, 2) numpy array of keypoints in original image coordinates
+    crop_box: [x_min_crop, y_min_crop, crop_w, crop_h] from original image
+    resized_size: (width, height) of the resized image (default: 640x480)
+    
+    returns: bbox in resized image coordinate
+    """
+    x_min_crop, y_min_crop, crop_w, crop_h = crop_box
+    target_w, target_h = resized_size
+
+    # crop → resize の変換係数
+    scale_x = target_w / crop_w
+    scale_y = target_h / crop_h
+
+    # キーポイントを crop → resize 後の座標に変換
+    hand_2d_cropped = hand_2d.copy()
+    hand_2d_cropped[:, 0] = (hand_2d[:, 0] - x_min_crop) * scale_x
+    hand_2d_cropped[:, 1] = (hand_2d[:, 1] - y_min_crop) * scale_y
+
+    # bbox生成
+    x_min_ = min(hand_2d_cropped[:, 0])
+    x_max_ = max(hand_2d_cropped[:, 0])
+    y_min_ = min(hand_2d_cropped[:, 1])
+    y_max_ = max(hand_2d_cropped[:, 1])
+
+    bbox = [
+        max(0, x_min_),
+        max(0, y_min_),
+        min(target_w, x_max_ - x_min_),
+        min(target_h, y_max_ - y_min_)
+    ]
+    return bbox
+
+import numpy as np
+import trimesh
+def to_4x4_matrix(matrix_3x4):
+    """Convert a 3x4 matrix (as list or array) to a 4x4 homogenous matrix"""
+    matrix_3x4 = np.array(matrix_3x4).reshape(3, 4)
+    matrix_4x4 = np.eye(4)
+    matrix_4x4[:3, :4] = matrix_3x4
+    return matrix_4x4
+def compute_object_bbox_2d(
+    object_file,
+    object_mat,
+    extrinsic,
+    intrinsic,
+    crop_box,
+    scale,
+    resized_size=(640, 480)
+):
+    # to numpy if tensor
+    if hasattr(extrinsic, 'cpu'):
+        extrinsic = extrinsic.cpu().numpy()
+    if hasattr(intrinsic, 'cpu'):
+        intrinsic = intrinsic.cpu().numpy()
+
+    # convert extrinsic to 4x4
+    extrinsic = to_4x4_matrix(extrinsic)
+
+    # スケール行列を生成して object_mat に掛ける
+    if isinstance(scale, (int, float)):
+        scale_matrix = np.diag([scale, scale, scale, 1.0])
+    elif isinstance(scale, (list, tuple, np.ndarray)) and len(scale) == 3:
+        scale_matrix = np.diag([scale[0], scale[1], scale[2], 1.0])
+    else:
+        raise ValueError("Invalid scale format")
+    
+    object_mat = np.array(object_mat) @ scale_matrix
+
+    # load object mesh
+    mesh = trimesh.load(object_file, force='mesh')
+    vertices = mesh.vertices
+    vertices_homo = np.hstack([vertices, np.ones((vertices.shape[0], 1))])
+    vertices_world = (object_mat @ vertices_homo.T).T
+    vertices_cam = (extrinsic @ vertices_world.T).T
+
+    # projection (intrinsic)
+    intrinsic_mat = intrinsic.reshape(3, 3)
+    x, y, z = vertices_cam[:, 0], vertices_cam[:, 1], vertices_cam[:, 2] + 1e-5
+    fx, fy = intrinsic_mat[0, 0], intrinsic_mat[1, 1]
+    cx, cy = intrinsic_mat[0, 2], intrinsic_mat[1, 2]
+    u = fx * x / z + cx
+    v = fy * y / z + cy
+
+    # crop & resize transformation
+    crop_x, crop_y, crop_w, crop_h = crop_box
+    scale_x = resized_size[0] / crop_w
+    scale_y = resized_size[1] / crop_h
+    u_cropped = (u - crop_x) * scale_x
+    v_cropped = (v - crop_y) * scale_y
+
+    # bounding box in cropped/resized image
+    x_min = max(0, np.min(u_cropped))
+    y_min = max(0, np.min(v_cropped))
+    x_max = min(resized_size[0], np.max(u_cropped))
+    y_max = min(resized_size[1], np.max(v_cropped))
+
+    return [int(x_min), int(y_min), int(x_max), int(y_max)]

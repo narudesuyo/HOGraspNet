@@ -1,5 +1,7 @@
 import os
 import wget
+import sys
+sys.path.append('/large/naru/HOGraspNet/src')
 from dataset.config import cfg
 import requests
 from requests.exceptions import ConnectionError
