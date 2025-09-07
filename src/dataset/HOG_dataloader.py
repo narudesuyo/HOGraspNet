@@ -11,10 +11,9 @@ import cv2
 from tqdm import tqdm
 import pickle
 from config import cfg
-current_dir = os.path.dirname(os.path.abspath(__file__))
-hograspnet_src_path = os.path.join(current_dir, "..", "..", "HOGraspNet", "src")
-sys.path.append(os.path.abspath(hograspnet_src_path))
-from util.utils import extractBbox, extract_bbox_from_cropped, compute_object_bbox_2d
+sys.path.append("/large/naru/HOGraspNet/src")
+sys.path.append("/large/naru/HOGraspNet/")
+from src.util.utils import extractBbox, extract_bbox_from_cropped, compute_object_bbox_2d
 import smplx
 import gc
 import re
@@ -35,8 +34,8 @@ class HOGDataset():
         self._split = split
         self._use_aug = use_aug
 
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
+        # self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device('cpu') # edited by naru
         self._base_dir = db_path
         self._base_anno = os.path.join(self._base_dir, 'labeling_data')
         self._base_source = os.path.join(self._base_dir, 'source_data')
@@ -194,6 +193,7 @@ class HOGDataset():
             print(f"loading from saved pkl {self._data_pkl_pth}")
             with open(self._data_pkl_pth, 'rb') as handle:
                 dict_data = pickle.load(handle)
+                # dict_data = torch.load(handle, map_location="cpu")
 
             self.dataset_samples = dict_data['data']
             self.mapping = dict_data['mapping']
@@ -230,7 +230,7 @@ class HOGDataset():
                         if camID in valid_cams:
                             anno_list = os.listdir(os.path.join(anno_base_path, camID))
                             anno_path = os.path.join(anno_base_path, camID, anno_list[0])
-
+                            print(f"anno_path: {anno_path}")
                             with open(anno_path, 'r', encoding='UTF-8 SIG') as file:
                                 anno = json.load(file)
 
@@ -306,12 +306,12 @@ class HOGDataset():
     #                            center_idx=0, ncomps=45, root_rot_mode="axisang", joint_rot_mode="axisang").to(self.device)
     #     self.hand_faces_template = self.mano_layer.th_faces.repeat(1, 1, 1)
 
-    # def load_obj_mesh(self):
-    #     target_mesh_class = str(self.obj_id).zfill(2) + '_' + str(OBJType(int(self.obj_id)).name)
+    # def load_obj_mesh(self, obj_id):
+    #     target_mesh_class = str(obj_id).zfill(2) + '_' + str(OBJType(int(obj_id)).name)
     #     self.obj_mesh_name = target_mesh_class + '.obj'
 
     #     obj_mesh_path = os.path.join(self.baseDir, self.objModelDir, target_mesh_class, self.obj_mesh_name)
-    #     obj_scale = _OBJECT_SCALE_FIXED[int(self.obj_id) - 1]
+    #     obj_scale = _OBJECT_SCALE_FIXED[int(obj_id) - 1]
     #     obj_verts, obj_faces, _ = load_obj(obj_mesh_path)
     #     obj_verts_template = (obj_verts * float(obj_scale)).to(self.device)
     #     obj_faces_template = torch.unsqueeze(obj_faces.verts_idx, axis=0).to(self.device)
@@ -435,7 +435,7 @@ class HOGDataset():
             anno_data = json.load(file)     
 
         hand_2d = np.squeeze(np.asarray(anno_data['hand']['projected_2D_pose_per_cam']))
-        bbox, _ = extractBbox(hand_2d)
+        bbox, coord = extractBbox(hand_2d)
         bbox_hand = extract_bbox_from_cropped(hand_2d, bbox)
         
         rgb_path = sample['rgb_path']
@@ -460,6 +460,7 @@ class HOGDataset():
 
 
         batch['taxonomy_id'] = anno_data["annotations"][0]["class_id"]-1
+        batch['taxonomy_name'] = anno_data["annotations"][0]["class_name"]
         batch['object_id'] = anno_data["object"]["id"]
         batch['rgb_path'] = rgb_path
         # batch['rgb_data'] = rgb_data
@@ -475,11 +476,14 @@ class HOGDataset():
         mano_betas = anno_data["Mesh"][0]["mano_betas"]
         mano_side = anno_data["Mesh"][0]["mano_side"]
         mano_xyz_root = anno_data["hand"]["mano_xyz_root"]
+        batch["mano_scale"] = anno_data["hand"]["mano_scale"]
+        batch["bbox"] = bbox
         batch["mano_trans"] = mano_trans
         batch["mano_pose"] = mano_pose
         batch["mano_betas"] = mano_betas
         batch["mano_side"] = mano_side
         batch["mano_xyz_root"] = mano_xyz_root
+        batch["3D_pose_per_cam"] = anno_data["hand"]["3D_pose_per_cam"]
         # with open(mano_path, 'rb') as d:
         #     mano_data = pickle.load(d)
         # batch['mano_hamer'] = mano_data
@@ -487,8 +491,8 @@ class HOGDataset():
         # sample['bbox'] = bbox        
         # edited by naru この辺#にしたよ
         # sample['camera']  = c
-        # sample['intrinsics'] = self.cam_param_dict[s][t]['Ks'][c]
-        # sample['extrinsics'] = self.cam_param_dict[s][t]['Ms'][c]
+        batch["intrinsics"] = self.cam_param_dict[s][t]['Ks'][c]
+        batch["extrinsics"] = self.cam_param_dict[s][t]['Ms'][c]
         # del anno_data, sample
         # gc.collect()
         batch["subject"] = s
@@ -506,12 +510,86 @@ class HOGDataset():
         object_file = os.path.join(self._base_dir, 'obj_scanned_models',obj,object_file)
         # obj_scale = _OBJECT_SCALE_FIXED[int(self.obj_id) - 1]
         obj_scale = _OBJECT_SCALE_FIXED = [1.,1.,1.,1.,0.8296698468,1.,1.,1.,1.,1.,0.1035083229,1.,0.6706711338,1.,1.,0.43,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.]
-        batch["bbox_obj"] = compute_object_bbox_2d(object_file, 
-                                                   anno_data["Mesh"][0]["object_mat"],
-                                                   self.cam_param_dict[s][t]['Ms'][c],
-                                                   self.cam_param_dict[s][t]['Ks'][c],
-                                                   bbox,
-                                                   scale = obj_scale[first_number-1])
+        # batch["bbox_obj"] = compute_object_bbox_2d(object_file, 
+        #                                            anno_data["Mesh"][0]["object_mat"],
+        #                                            self.cam_param_dict[s][t]['Ms'][c],
+        #                                            self.cam_param_dict[s][t]['Ks'][c],
+        #                                            bbox,
+        #                                            scale = obj_scale[first_number-1]) # bbox一旦なし by naru
+        text_path = os.path.join(self._base_dir, 'caption', s, t, c, c + '_' + f + '.txt')
+
+        if os.path.exists(text_path):
+            with open(text_path, "r", encoding="utf-8") as file:
+                text = file.read()
+            batch["caption_bullet_points"]   = text
+        else:
+            batch["caption_bullet_points"] = None
+        
+        gt_taxonomy_caption_path = os.path.join(self._base_dir, 'gt_taxonomy_caption', s, t, c, c + '_' + f + '.txt')
+        if os.path.exists(gt_taxonomy_caption_path):
+            with open(gt_taxonomy_caption_path, "r", encoding="utf-8") as file:
+                text = file.read()
+            batch["gt_taxonomy_caption"]   = text
+        else:
+            batch["gt_taxonomy_caption"] = None
+        
+        gt_taxonomy_summary_path = os.path.join(self._base_dir, 'gt_taxonomy_summary', s, t, c, c + '_' + f + '.txt')
+        if os.path.exists(gt_taxonomy_summary_path):
+            with open(gt_taxonomy_summary_path, "r", encoding="utf-8") as file:
+                text = file.read()
+            batch["gt_taxonomy_summary"]   = text
+        else:
+            batch["gt_taxonomy_summary"] = None
+        
+        gt_taxonomy_only_path = os.path.join(self._base_dir, 'gt_taxonomy_only', s, t, c, c + '_' + f + '.txt')
+        if os.path.exists(gt_taxonomy_only_path):
+            with open(gt_taxonomy_only_path, "r", encoding="utf-8") as file:
+                text = file.read()
+            batch["gt_taxonomy_only"]   = text
+        else:
+            batch["gt_taxonomy_only"] = None
+        
+        wo_taxonomy_summary_path = os.path.join(self._base_dir, 'wo_taxonomy_summary', s, t, c, c + '_' + f + '.txt')
+        if os.path.exists(wo_taxonomy_summary_path):
+            with open(wo_taxonomy_summary_path, "r", encoding="utf-8") as file:
+                text = file.read()
+            batch["wo_taxonomy_summary"]   = text
+        else:
+            batch["wo_taxonomy_summary"] = None
+        
+        short_summary_path = os.path.join(self._base_dir, 'short_summary', s, t, c, c + '_' + f + '.txt')
+        if os.path.exists(short_summary_path):
+            with open(short_summary_path, "r", encoding="utf-8") as file:
+                text = file.read()
+            batch["short_summary"]   = text
+        else:
+            batch["short_summary"] = None
+        
+        gt_taxonomy_summary_strict_path = os.path.join(self._base_dir, 'gt_taxonomy_summary_strict', s, t, c, c + '_' + f + '.txt')
+        if os.path.exists(gt_taxonomy_summary_strict_path):
+            with open(gt_taxonomy_summary_strict_path, "r", encoding="utf-8") as file:
+                text = file.read()
+            batch["gt_taxonomy_summary_strict"]   = text
+        else:
+            batch["gt_taxonomy_summary_strict"] = None
+
+        finetune_mano_path = os.path.join(self._base_dir, 'finetune_mano', s, t, c, c + '_' + f + '.pkl')
+        batch["finetune_mano_path"] = finetune_mano_path
+
+        batch["coord"] = coord
+        if os.path.exists(batch["mano_path"]):
+            with open(batch["mano_path"], "rb") as f:
+                mano_data = pickle.load(f)
+            batch["hamer_mano_pose"] = mano_data["pred_mano_params"]["hand_pose"]
+        else:
+            batch["hamer_mano_pose"] = None
+        
+
+
+        # batch["obj_mesh_data"] = self.load_obj_mesh(sample['obj_ids'])
+        batch["obj_pose"] = np.squeeze(np.asarray(anno_data['Mesh'][0]['object_mat']))
+
+        
 
 
         return batch
